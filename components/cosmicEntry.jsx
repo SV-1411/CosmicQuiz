@@ -1,19 +1,22 @@
+import { Link } from 'lucide-react';
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 
 export default function CosmicQuizEntry() {
   const [teamNumber, setTeamNumber] = useState('');
   const [memberName, setMemberName] = useState('');
+  const navigate = useNavigate();
 
   const handleBegin = () => {
     if (teamNumber && memberName) {
-      alert(`Welcome ${memberName} from Team ${teamNumber}! Let's begin the cosmic quiz!`);
+        navigate("/questions")
     } else {
       alert('Please fill in both fields to continue.');
     }
   };
 
   return (
-    <div className="min-h-screen w-full flex flex-col items-center justify-center bg-cover bg-center relative"
+    <div className="min-h-screen bg-blue-950 w-full flex flex-col items-center justify-center bg-cover bg-center relative bg-repeat"
       style={{ backgroundImage: "url('assets/cosmic-desktop.jpg')" }}
     >
       {/* Content */}

@@ -6,19 +6,6 @@ export default function CongratulationsScreen({
   onReviewAnswers, 
   onReturnHome 
 }) {
-  // Generate animated stars
-  const generateStars = (count) => {
-    return Array.from({ length: count }, (_, i) => ({
-      id: i,
-      left: Math.random() * 100,
-      top: Math.random() * 100,
-      size: Math.random() * 3 + 1,
-      delay: Math.random() * 3,
-      duration: Math.random() * 2 + 2
-    }));
-  };
-
-  const stars = generateStars(60);
 
   const getPerformanceMessage = (score, total) => {
     const percentage = (score / total) * 100;
@@ -30,25 +17,8 @@ export default function CongratulationsScreen({
   };
 
   return (
-    <div className="min-h-screen w-full relative overflow-hidden bg-gradient-to-b from-slate-900 via-purple-900 to-slate-900">
-      {/* Animated Background Stars */}
-      <div className="absolute inset-0">
-        {stars.map((star) => (
-          <div
-            key={star.id}
-            className="absolute bg-white rounded-full animate-pulse"
-            style={{
-              left: `${star.left}%`,
-              top: `${star.top}%`,
-              width: `${star.size}px`,
-              height: `${star.size}px`,
-              animationDelay: `${star.delay}s`,
-              animationDuration: `${star.duration}s`
-            }}
-          />
-        ))}
-      </div>
-
+    <div className="min-h-screen bg-blue-950 w-full flex flex-col items-center justify-center bg-cover bg-center relative bg-repeat"
+      style={{ backgroundImage: "url('assets/cosmic-desktop.jpg')" }}>
       {/* Glowing Border */}
       <div className="absolute inset-4 md:inset-8 border border-white/20 rounded-3xl bg-white/5 backdrop-blur-sm shadow-2xl shadow-purple-500/20"></div>
 
