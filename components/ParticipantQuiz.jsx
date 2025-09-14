@@ -227,24 +227,48 @@ export default function ParticipantQuiz({ user, quiz, onLogout, onLeaveQuiz }) {
       <div className="min-h-screen bg-blue-950 w-full bg-cover bg-center relative"
         style={{ backgroundImage: "url('assets/cosmic-desktop.jpg')" }}
       >
-        <div className="relative z-10 p-6 flex flex-col items-center justify-center min-h-screen">
-          <div className="bg-slate-800 bg-opacity-60 backdrop-blur-lg border border-purple-300 border-opacity-30 rounded-xl p-8 text-center max-w-md">
-            <h2 className="text-2xl font-serif text-white mb-4">Quiz Not Active</h2>
-            <p className="text-gray-300 mb-6">This quiz session is not currently active. Please wait for the admin to start the quiz.</p>
-            <div className="flex gap-4">
-              <button
-                onClick={onLeaveQuiz}
-                className="flex-1 bg-gray-600 hover:bg-gray-700 text-white py-2 px-4 rounded-lg transition-colors"
-              >
-                Back
-              </button>
+        <div className="relative z-10 p-6 max-w-5xl mx-auto space-y-6">
+          {/* Top header */}
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-3xl font-serif text-white tracking-wider">{quiz.title}</h1>
+              <div className="text-purple-300 text-sm">Code: {quiz.quiz_code}</div>
+            </div>
+            <div className="flex items-center gap-3">
+              <div className="text-right">
+                <div className="text-white font-bold text-lg">{participant?.total_score || 0} pts</div>
+                <div className="text-gray-300 text-xs">Your Score</div>
+              </div>
               <button
                 onClick={handleLogout}
-                className="flex-1 bg-red-500 hover:bg-red-600 text-white py-2 px-4 rounded-lg transition-colors flex items-center justify-center gap-2"
+                className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg transition-colors flex items-center gap-2"
               >
                 <LogOut size={16} />
                 Logout
               </button>
+            </div>
+          </div>
+
+          {/* Centered content */}
+          <div className="flex items-center justify-center min-h-[60vh]">
+            <div className="bg-slate-800/70 backdrop-blur-lg border border-purple-300/30 rounded-xl p-8 text-center max-w-md w-full shadow-xl">
+              <h2 className="text-2xl font-serif text-white mb-4">Quiz Not Active</h2>
+              <p className="text-gray-300 mb-6">This quiz session is not currently active. Please wait for the admin to start the quiz.</p>
+              <div className="flex gap-4">
+                <button
+                  onClick={onLeaveQuiz}
+                  className="flex-1 bg-gray-600 hover:bg-gray-700 text-white py-2 px-4 rounded-lg transition-colors"
+                >
+                  Back
+                </button>
+                <button
+                  onClick={handleLogout}
+                  className="flex-1 bg-red-500 hover:bg-red-600 text-white py-2 px-4 rounded-lg transition-colors flex items-center justify-center gap-2"
+                >
+                  <LogOut size={16} />
+                  Logout
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -260,14 +284,12 @@ export default function ParticipantQuiz({ user, quiz, onLogout, onLeaveQuiz }) {
       <div className="min-h-screen bg-blue-950 w-full bg-cover bg-center relative"
         style={{ backgroundImage: "url('assets/cosmic-desktop.jpg')" }}
       >
-        <div className="relative z-10 p-6">
-          {/* Header */}
-          <div className="flex justify-between items-center mb-8">
+        <div className="relative z-10 p-6 max-w-5xl mx-auto space-y-6">
+          {/* Top header */}
+          <div className="flex justify-between items-center">
             <div>
               <h1 className="text-3xl font-serif text-white tracking-wider">{quiz.title}</h1>
-              <p className="text-purple-300">
-                {isCompleted ? 'Quiz Completed!' : 'Leaderboard'}
-              </p>
+              <div className="text-purple-300 text-sm">{isCompleted ? 'Quiz Completed!' : 'Leaderboard'} • Code: {quiz.quiz_code}</div>
             </div>
             <div className="flex items-center gap-4">
               <div className="text-right">
@@ -302,7 +324,7 @@ export default function ParticipantQuiz({ user, quiz, onLogout, onLeaveQuiz }) {
           )}
 
           {/* Leaderboard */}
-          <div className="bg-slate-800 bg-opacity-60 backdrop-blur-lg border border-purple-300 border-opacity-30 rounded-xl p-6">
+          <div className="bg-slate-800/70 backdrop-blur-lg border border-purple-300/30 rounded-xl p-6 shadow-xl">
             <div className="flex items-center gap-2 mb-6">
               <Trophy className="text-yellow-400" size={24} />
               <h2 className="text-2xl font-serif text-white">
@@ -374,32 +396,46 @@ export default function ParticipantQuiz({ user, quiz, onLogout, onLeaveQuiz }) {
       <div className="min-h-screen bg-blue-950 w-full bg-cover bg-center relative"
         style={{ backgroundImage: "url('assets/cosmic-desktop.jpg')" }}
       >
-        <div className="relative z-10 p-6 flex flex-col items-center justify-center min-h-screen">
-          <div className="bg-slate-800 bg-opacity-60 backdrop-blur-lg border border-purple-300 border-opacity-30 rounded-xl p-8 text-center max-w-md">
-            <div className="w-16 h-16 bg-gradient-to-r from-purple-500 to-blue-500 rounded-full flex items-center justify-center mx-auto mb-4">
-              <Users className="text-white" size={24} />
+        <div className="relative z-10 p-6 max-w-5xl mx-auto space-y-6">
+          {/* Top header */}
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-3xl font-serif text-white tracking-wider">{quiz.title}</h1>
+              <div className="text-purple-300 text-sm">Waiting Room • Code: {quiz.quiz_code}</div>
             </div>
-            <h2 className="text-2xl font-serif text-white mb-4">Get Ready!</h2>
-            <p className="text-gray-300 mb-4">You've joined <strong>{quiz.title}</strong></p>
-            <p className="text-gray-400 text-sm mb-6">Waiting for the quiz to start...</p>
-            <div className="text-center">
+            <div className="text-right">
               <div className="text-white font-bold text-lg">{participant.total_score} pts</div>
-              <div className="text-gray-300 text-sm">Your Current Score</div>
+              <div className="text-gray-300 text-sm">Your Score</div>
             </div>
-            <div className="mt-6 flex gap-4">
-              <button
-                onClick={onLeaveQuiz}
-                className="flex-1 bg-gray-600 hover:bg-gray-700 text-white py-2 px-4 rounded-lg transition-colors"
-              >
-                Leave Quiz
-              </button>
-              <button
-                onClick={handleLogout}
-                className="flex-1 bg-red-500 hover:bg-red-600 text-white py-2 px-4 rounded-lg transition-colors flex items-center justify-center gap-2"
-              >
-                <LogOut size={16} />
-                Logout
-              </button>
+          </div>
+
+          <div className="flex items-center justify-center min-h-[60vh]">
+            <div className="bg-slate-800/70 backdrop-blur-lg border border-purple-300/30 rounded-xl p-8 text-center max-w-md w-full shadow-xl">
+              <div className="w-16 h-16 bg-gradient-to-r from-purple-500 to-blue-500 rounded-full flex items-center justify-center mx-auto mb-4">
+                <Users className="text-white" size={24} />
+              </div>
+              <h2 className="text-2xl font-serif text-white mb-4">Get Ready!</h2>
+              <p className="text-gray-300 mb-4">You've joined <strong>{quiz.title}</strong></p>
+              <p className="text-gray-400 text-sm mb-6">Waiting for the quiz to start...</p>
+              <div className="text-center">
+                <div className="text-white font-bold text-lg">{participant.total_score} pts</div>
+                <div className="text-gray-300 text-sm">Your Current Score</div>
+              </div>
+              <div className="mt-6 flex gap-4">
+                <button
+                  onClick={onLeaveQuiz}
+                  className="flex-1 bg-gray-600 hover:bg-gray-700 text-white py-2 px-4 rounded-lg transition-colors"
+                >
+                  Leave Quiz
+                </button>
+                <button
+                  onClick={handleLogout}
+                  className="flex-1 bg-red-500 hover:bg-red-600 text-white py-2 px-4 rounded-lg transition-colors flex items-center justify-center gap-2"
+                >
+                  <LogOut size={16} />
+                  Logout
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -421,12 +457,12 @@ export default function ParticipantQuiz({ user, quiz, onLogout, onLeaveQuiz }) {
     <div className="min-h-screen bg-blue-950 w-full bg-cover bg-center relative"
       style={{ backgroundImage: "url('assets/cosmic-desktop.jpg')" }}
     >
-      <div className="relative z-10 p-6">
-        {/* Header */}
-        <div className="flex justify-between items-center mb-8">
+      <div className="relative z-10 p-6 max-w-5xl mx-auto space-y-6">
+        {/* Top header */}
+        <div className="flex justify-between items-center">
           <div>
             <h1 className="text-2xl font-serif text-white tracking-wider">{quiz.title}</h1>
-            <p className="text-purple-300">Question {session.current_question_number} of {session.total_questions}</p>
+            <div className="text-purple-300 text-sm">Question {session.current_question_number} of {session.total_questions} • Code: {quiz.quiz_code}</div>
           </div>
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-2 text-yellow-400">
@@ -447,7 +483,7 @@ export default function ParticipantQuiz({ user, quiz, onLogout, onLeaveQuiz }) {
         )}
 
         {/* Progress */}
-        <div className="flex justify-center mb-8">
+        <div className="flex justify-center">
           <div className="flex gap-2">
             {Array.from({ length: session.total_questions }, (_, i) => (
               <div
@@ -463,7 +499,7 @@ export default function ParticipantQuiz({ user, quiz, onLogout, onLeaveQuiz }) {
 
         {/* Question */}
         <div className="max-w-2xl mx-auto">
-          <div className="bg-slate-800 bg-opacity-60 backdrop-blur-lg border border-purple-300 border-opacity-30 rounded-xl p-8">
+          <div className="bg-slate-800/70 backdrop-blur-lg border border-purple-300/30 rounded-xl p-8 shadow-xl">
             <h2 className="text-white text-xl font-light mb-8 text-center leading-relaxed">
               {currentQuestion.question_text}
             </h2>

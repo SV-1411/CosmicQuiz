@@ -3,7 +3,7 @@ import { supabase } from './supabase'
 // Admin credentials (hardcoded as requested)
 const ADMIN_CREDENTIALS = {
   username: 'admin',
-  password: 'admin123'
+  password: 'admin123@ieeecsghrce'
 }
 
 // Hash password (simple implementation for demo)

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { ArrowLeft, Play, Square, Clock, BarChart3, RefreshCw } from 'lucide-react'
 import { getQuizById, getActiveSession, startNextQuestion, endCurrentQuestion, getLeaderboard, restartQuiz, stopQuiz, deleteQuiz } from '../src/lib/quizService'
 import { supabase } from '../src/lib/supabase'
+import { getPaginatedParticipants, getPaginatedLeaderboard, SubscriptionManager, debounce } from '../src/lib/performance'
 
 export default function QuizManagement({ quiz, onBack, onUpdate }) {
   const [quizDetails, setQuizDetails] = useState(null)
@@ -9,9 +10,14 @@ export default function QuizManagement({ quiz, onBack, onUpdate }) {
   const [currentQuestion, setCurrentQuestion] = useState(null)
   const [leaderboard, setLeaderboard] = useState([])
   const [participants, setParticipants] = useState([])
+  const [participantsPage, setParticipantsPage] = useState(0)
+  const [participantsHasMore, setParticipantsHasMore] = useState(false)
+  const [leaderboardPage, setLeaderboardPage] = useState(0)
+  const [leaderboardHasMore, setLeaderboardHasMore] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [timeLeft, setTimeLeft] = useState(0)
+  const [subscriptionManager] = useState(() => new SubscriptionManager())
 
   useEffect(() => {
     loadQuizDetails()
@@ -223,66 +229,95 @@ export default function QuizManagement({ quiz, onBack, onUpdate }) {
   }
 
   return (
-    <div className="min-h-screen bg-blue-950 w-full bg-cover bg-center relative"
+    <div className="min-h-screen bg-blue-950 w-full bg-cover bg-center relative flex"
       style={{ backgroundImage: "url('assets/cosmic-desktop.jpg')" }}
     >
-      <div className="relative z-10 p-6">
-        <div className="flex items-center justify-between gap-4 mb-8">
-          <button
-            onClick={onBack}
-            className="text-white hover:text-purple-300 transition-colors"
-          >
-            <ArrowLeft size={24} />
-          </button>
-          <div className="flex-1">
-            <h1 className="text-4xl font-serif text-white tracking-wider">
-              {quiz.title}
-            </h1>
-            <div className="flex items-center gap-4 mt-2">
-              <span className="text-purple-300">Code: {quiz.quiz_code}</span>
-              <span className={`px-3 py-1 rounded-full text-sm ${
-                quiz.status === 'active' ? 'bg-green-500' : 
-                quiz.status === 'waiting' ? 'bg-yellow-500' :
-                quiz.status === 'completed' ? 'bg-blue-500' : 'bg-gray-500'
-              } text-white`}>
-                {quiz.status.toUpperCase()}
-              </span>
+      {/* Left Sidebar */}
+      <div className="w-80 bg-slate-900/80 backdrop-blur-lg border-r border-purple-300/30 p-6 flex flex-col">
+        <button
+          onClick={onBack}
+          className="text-white hover:text-purple-300 transition-colors mb-6 self-start"
+        >
+          <ArrowLeft size={24} />
+        </button>
+        
+        <div className="mb-8">
+          <h1 className="text-3xl font-serif text-white tracking-wider mb-4">
+            {quiz.title}
+          </h1>
+          <div className="space-y-2">
+            <div className="text-purple-300 text-sm">Code: {quiz.quiz_code}</div>
+            <div className={`px-3 py-1 rounded-full text-sm inline-block ${
+              quiz.status === 'active' ? 'bg-green-500' : 
+              quiz.status === 'waiting' ? 'bg-yellow-500' :
+              quiz.status === 'completed' ? 'bg-blue-500' : 'bg-gray-500'
+            } text-white`}>
+              {quiz.status.toUpperCase()}
             </div>
           </div>
-          {/* Action buttons */}
-          <div className="flex gap-2">
-            <button
-              onClick={handleRestartQuiz}
-              className="bg-yellow-600 hover:bg-yellow-700 text-white px-3 py-2 rounded-lg text-sm"
-            >
-              Restart
-            </button>
-            <button
-              onClick={handleStopQuiz}
-              disabled={!activeSession}
-              className="bg-red-600 hover:bg-red-700 text-white px-3 py-2 rounded-lg text-sm disabled:opacity-50"
-            >
-              Stop
-            </button>
-            <button
-              onClick={handleDeleteQuiz}
-              className="bg-gray-600 hover:bg-gray-700 text-white px-3 py-2 rounded-lg text-sm"
-            >
-              Delete
-            </button>
+        </div>
+
+        {/* Action buttons in sidebar */}
+        <div className="space-y-3 mb-8">
+          <button
+            onClick={handleRestartQuiz}
+            className="w-full bg-yellow-600 hover:bg-yellow-700 text-white px-4 py-3 rounded-lg transition-colors flex items-center justify-center gap-2"
+          >
+            <RefreshCw size={18} />
+            Restart Quiz
+          </button>
+          <button
+            onClick={handleStopQuiz}
+            disabled={!activeSession}
+            className="w-full bg-red-600 hover:bg-red-700 text-white px-4 py-3 rounded-lg transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+          >
+            <Square size={18} />
+            Stop Quiz
+          </button>
+          <button
+            onClick={handleDeleteQuiz}
+            className="w-full bg-gray-600 hover:bg-gray-700 text-white px-4 py-3 rounded-lg transition-colors flex items-center justify-center gap-2"
+          >
+            Delete Quiz
+          </button>
+        </div>
+
+        {/* Session info in sidebar */}
+        {activeSession && (
+          <div className="bg-slate-800/50 rounded-lg p-4">
+            <h3 className="text-white font-medium mb-3">Session Status</h3>
+            <div className="space-y-2 text-sm">
+              <div className="flex justify-between">
+                <span className="text-gray-300">Status:</span>
+                <span className="text-purple-300 font-medium">{activeSession.session_status}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-300">Question:</span>
+                <span className="text-white">{activeSession.current_question_number || 0}/{activeSession.total_questions}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-300">Participants:</span>
+                <span className="text-white">{participants.length}</span>
+              </div>
+            </div>
           </div>
+        )}
+      </div>
+
+      {/* Main Content Area */}
+      <div className="flex-1 p-6 space-y-6">
 
         {error && (
-          <div className="bg-red-500 bg-opacity-20 border border-red-500 text-red-300 p-4 rounded-lg mb-6">
+          <div className="bg-red-500/15 border border-red-500/50 text-red-300 p-4 rounded-lg">
             {error}
           </div>
         )}
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Quiz Control Panel */}
           <div className="lg:col-span-2">
-            <div className="bg-slate-800 bg-opacity-60 backdrop-blur-lg border border-purple-300 border-opacity-30 rounded-xl p-6 mb-6">
-              <h2 className="text-2xl font-serif text-white mb-4">Quiz Control</h2>
+            <div className="bg-slate-800/70 backdrop-blur-lg border border-purple-300/30 rounded-xl p-6 shadow-xl">
+              <h2 className="text-2xl font-serif text-white mb-6">Quiz Control</h2>
               
               {!activeSession ? (
                 <div className="text-center py-8">
@@ -291,29 +326,8 @@ export default function QuizManagement({ quiz, onBack, onUpdate }) {
                 </div>
               ) : (
                 <div>
-                  <div className="grid grid-cols-3 gap-4 mb-6">
-                    <div className="text-center">
-                      <div className="text-2xl font-bold text-white">
-                        {activeSession.current_question_number || 0}
-                      </div>
-                      <div className="text-sm text-gray-300">Current Question</div>
-                    </div>
-                    <div className="text-center">
-                      <div className="text-2xl font-bold text-white">
-                        {activeSession.total_questions}
-                      </div>
-                      <div className="text-sm text-gray-300">Total Questions</div>
-                    </div>
-                    <div className="text-center">
-                      <div className="text-2xl font-bold text-white">
-                        {participants.length}
-                      </div>
-                      <div className="text-sm text-gray-300">Participants</div>
-                    </div>
-                  </div>
-
                   {activeSession.session_status === 'question_active' && currentQuestion && (
-                    <div className="bg-slate-700 bg-opacity-50 rounded-lg p-4 mb-4">
+                    <div className="bg-slate-700/50 rounded-lg p-6 mb-6">
                       <div className="flex items-center justify-between mb-2">
                         <h3 className="text-white font-medium">Current Question</h3>
                         <div className="flex items-center gap-2 text-yellow-400">
@@ -322,10 +336,10 @@ export default function QuizManagement({ quiz, onBack, onUpdate }) {
                         </div>
                       </div>
                       <p className="text-gray-300 mb-3">{currentQuestion.question_text}</p>
-                      <div className="grid grid-cols-2 gap-2">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                         {currentQuestion.question_options?.map((option, index) => (
-                          <div key={option.id} className={`p-2 rounded text-sm ${
-                            option.is_correct ? 'bg-green-500 bg-opacity-20 text-green-300' : 'bg-slate-600 text-gray-300'
+                          <div key={option.id} className={`p-3 rounded text-sm ${
+                            option.is_correct ? 'bg-green-500/20 text-green-300 border border-green-500/30' : 'bg-slate-600 text-gray-300'
                           }`}>
                             {option.option_text} {option.is_correct && '✓'}
                           </div>
@@ -334,11 +348,11 @@ export default function QuizManagement({ quiz, onBack, onUpdate }) {
                     </div>
                   )}
 
-                  <div className="flex gap-4">
+                  <div className="flex flex-wrap gap-4">
                     {activeSession.session_status === 'waiting' && (
                       <button
                         onClick={handleStartNextQuestion}
-                        className="bg-green-500 hover:bg-green-600 text-white px-6 py-3 rounded-lg transition-colors flex items-center gap-2"
+                        className="bg-green-500 hover:bg-green-600 text-white px-6 py-3 rounded-lg transition-colors flex items-center gap-2 shadow-lg"
                       >
                         <Play size={20} />
                         Start First Question
@@ -348,7 +362,7 @@ export default function QuizManagement({ quiz, onBack, onUpdate }) {
                     {activeSession.session_status === 'showing_leaderboard' && (
                       <button
                         onClick={handleStartNextQuestion}
-                        className="bg-blue-500 hover:bg-blue-600 text-white px-6 py-3 rounded-lg transition-colors flex items-center gap-2"
+                        className="bg-blue-500 hover:bg-blue-600 text-white px-6 py-3 rounded-lg transition-colors flex items-center gap-2 shadow-lg"
                       >
                         <Play size={20} />
                         Next Question
@@ -358,7 +372,7 @@ export default function QuizManagement({ quiz, onBack, onUpdate }) {
                     {activeSession.session_status === 'question_active' && (
                       <button
                         onClick={handleEndQuestion}
-                        className="bg-orange-500 hover:bg-orange-600 text-white px-6 py-3 rounded-lg transition-colors flex items-center gap-2"
+                        className="bg-orange-500 hover:bg-orange-600 text-white px-6 py-3 rounded-lg transition-colors flex items-center gap-2 shadow-lg"
                       >
                         <Square size={20} />
                         End Question
@@ -371,7 +385,7 @@ export default function QuizManagement({ quiz, onBack, onUpdate }) {
                         loadParticipants()
                         loadLeaderboard()
                       }}
-                      className="bg-purple-500 hover:bg-purple-600 text-white px-4 py-3 rounded-lg transition-colors"
+                      className="bg-purple-500 hover:bg-purple-600 text-white px-4 py-3 rounded-lg transition-colors shadow-lg"
                     >
                       <RefreshCw size={20} />
                     </button>
@@ -381,7 +395,7 @@ export default function QuizManagement({ quiz, onBack, onUpdate }) {
             </div>
 
             {/* Participants List */}
-            <div className="bg-slate-800 bg-opacity-60 backdrop-blur-lg border border-purple-300 border-opacity-30 rounded-xl p-6">
+            <div className="mt-6 bg-slate-800/70 backdrop-blur-lg border border-purple-300/30 rounded-xl p-6 shadow-xl">
               <h2 className="text-2xl font-serif text-white mb-4">Participants ({participants.length})</h2>
               
               {participants.length === 0 ? (
@@ -392,9 +406,9 @@ export default function QuizManagement({ quiz, onBack, onUpdate }) {
                   </div>
                 </div>
               ) : (
-                <div className="space-y-2 max-h-64 overflow-y-auto">
+                <div className="space-y-3 max-h-80 overflow-y-auto">
                   {participants.map((participant) => (
-                    <div key={participant.id} className="flex items-center justify-between bg-slate-700 bg-opacity-50 rounded-lg p-3">
+                    <div key={participant.id} className="flex items-center justify-between bg-slate-700/50 rounded-lg p-4">
                       <div>
                         <div className="text-white font-medium">{participant.username}</div>
                         <div className="text-sm text-gray-400">
@@ -415,10 +429,10 @@ export default function QuizManagement({ quiz, onBack, onUpdate }) {
           </div>
 
           {/* Leaderboard */}
-          <div className="bg-slate-800 bg-opacity-60 backdrop-blur-lg border border-purple-300 border-opacity-30 rounded-xl p-6">
+          <div className="lg:col-span-1 bg-slate-800/70 backdrop-blur-lg border border-purple-300/30 rounded-xl p-6 shadow-xl">
             <div className="flex items-center gap-2 mb-4">
               <BarChart3 size={24} className="text-purple-400" />
-              <h2 className="text-2xl font-serif text-white">Live Leaderboard</h2>
+              <h2 className="text-xl font-serif text-white">Leaderboard</h2>
             </div>
             
             {leaderboard.length === 0 ? (
@@ -426,15 +440,15 @@ export default function QuizManagement({ quiz, onBack, onUpdate }) {
                 No scores yet
               </div>
             ) : (
-              <div className="space-y-3">
+              <div className="space-y-2 max-h-96 overflow-y-auto">
                 {leaderboard.map((entry, index) => (
-                  <div key={entry.id} className={`flex items-center gap-3 p-3 rounded-lg ${
+                  <div key={entry.id} className={`flex items-center gap-2 p-3 rounded-lg ${
                     index === 0 ? 'bg-yellow-500 bg-opacity-20 border border-yellow-500 border-opacity-30' :
                     index === 1 ? 'bg-gray-400 bg-opacity-20 border border-gray-400 border-opacity-30' :
                     index === 2 ? 'bg-orange-600 bg-opacity-20 border border-orange-600 border-opacity-30' :
                     'bg-slate-700 bg-opacity-50'
                   }`}>
-                    <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold ${
+                    <div className={`w-6 h-6 rounded-full flex items-center justify-center font-bold text-xs ${
                       index === 0 ? 'bg-yellow-500 text-white' :
                       index === 1 ? 'bg-gray-400 text-white' :
                       index === 2 ? 'bg-orange-600 text-white' :
@@ -443,14 +457,14 @@ export default function QuizManagement({ quiz, onBack, onUpdate }) {
                       {entry.current_position}
                     </div>
                     <div className="flex-1">
-                      <div className="text-white font-medium">{entry.username}</div>
-                      <div className="text-xs text-gray-400">
+                      <div className="text-white font-medium text-sm">{entry.username}</div>
+                      <div className="text-xs text-gray-500">
                         {entry.questions_answered} questions answered
                       </div>
                     </div>
                     <div className="text-right">
-                      <div className="text-white font-bold">{entry.total_score}</div>
-                      <div className="text-xs text-gray-400">points</div>
+                      <div className="text-white font-bold text-sm">{entry.total_score}</div>
+                      <div className="text-xs text-gray-500">pts</div>
                     </div>
                   </div>
                 ))}
@@ -459,37 +473,28 @@ export default function QuizManagement({ quiz, onBack, onUpdate }) {
           </div>
         </div>
 
-        {/* Quiz Questions Summary */}
+        {/* Quiz Questions Summary - Full Width Bottom Section */}
         {quizDetails && (
-          <div className="mt-8 bg-slate-800 bg-opacity-60 backdrop-blur-lg border border-purple-300 border-opacity-30 rounded-xl p-6">
-            <h2 className="text-2xl font-serif text-white mb-4">Quiz Questions ({quizDetails.questions?.length || 0})</h2>
-            
+          <div className="bg-slate-800/70 backdrop-blur-lg border border-purple-300/30 rounded-xl p-6 shadow-xl">
+            <h2 className="text-2xl font-serif text-white mb-6">Quiz Questions ({quizDetails.questions?.length || 0})</h2>
             {!quizDetails.questions || quizDetails.questions.length === 0 ? (
-              <div className="text-center text-gray-400 py-8">
-                No questions added to this quiz yet
-              </div>
+              <div className="text-center text-gray-400 py-12">No questions added to this quiz yet</div>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {quizDetails.questions
                   .sort((a, b) => a.question_order - b.question_order)
-                  .map((question, index) => (
-                    <div key={question.id} className="bg-slate-700 bg-opacity-50 rounded-lg p-4">
-                      <div className="flex items-start justify-between mb-2">
+                  .map((question) => (
+                    <div key={question.id} className="bg-slate-700/50 rounded-lg p-4">
+                      <div className="flex items-start justify-between mb-3">
                         <h3 className="text-white font-medium">Q{question.question_order}. {question.question_text}</h3>
-                        <div className="text-xs text-gray-400">
-                          {question.time_limit}s | {question.points}pts
-                        </div>
+                        <div className="text-xs text-gray-400">{question.time_limit}s | {question.points}pts</div>
                       </div>
-                      <div className="space-y-1">
-                        {question.question_options
-                          ?.sort((a, b) => a.option_order - b.option_order)
-                          .map((option) => (
-                            <div key={option.id} className={`text-sm px-2 py-1 rounded ${
-                              option.is_correct ? 'bg-green-500 bg-opacity-20 text-green-300' : 'text-gray-400'
-                            }`}>
-                              {option.option_text} {option.is_correct && '✓'}
-                            </div>
-                          ))}
+                      <div className="space-y-2">
+                        {question.question_options?.sort((a, b) => a.option_order - b.option_order).map((option) => (
+                          <div key={option.id} className={`text-xs px-3 py-2 rounded ${option.is_correct ? 'bg-green-500/20 text-green-300 border border-green-500/30' : 'bg-slate-600/50 text-gray-400'}`}>
+                            {option.option_text} {option.is_correct && '✓'}
+                          </div>
+                        ))}
                       </div>
                     </div>
                   ))}
@@ -498,7 +503,6 @@ export default function QuizManagement({ quiz, onBack, onUpdate }) {
           </div>
         )}
       </div>
-    </div>
     </div>
   )
 }
