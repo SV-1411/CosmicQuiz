@@ -75,8 +75,7 @@ export default function AdminLogin({ onLogin }) {
               </form>
 
               <div className="mt-6 text-center text-gray-400 text-sm">
-                <p>Default credentials:</p>
-                <p>Username: admin | Password: admin123</p>
+                
               </div>
             </div>
           </div>

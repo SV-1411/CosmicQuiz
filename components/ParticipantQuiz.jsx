@@ -1,22 +1,55 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { Clock, Users, Trophy, LogOut } from 'lucide-react'
 import { joinQuiz, submitAnswer, getLeaderboard } from '../src/lib/quizService'
 import { supabase } from '../src/lib/supabase'
 import { participantLogout } from '../src/lib/auth'
+
+// Custom hook to manage the countdown timer logic
+const useQuestionTimer = (endTime) => {
+  const [timeLeft, setTimeLeft] = useState(0);
+
+  useEffect(() => {
+    if (!endTime) {
+      setTimeLeft(0);
+      return;
+    }
+
+    // Set initial time immediately
+    const initialRemaining = Math.max(0, Math.ceil((endTime - Date.now()) / 1000));
+    setTimeLeft(initialRemaining);
+
+    const timer = setInterval(() => {
+      const remaining = Math.max(0, Math.ceil((endTime - Date.now()) / 1000));
+      setTimeLeft(remaining);
+      if (remaining === 0) {
+        clearInterval(timer);
+      }
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [endTime]);
+
+  return timeLeft;
+};
 
 export default function ParticipantQuiz({ user, quiz, onLogout, onLeaveQuiz }) {
   const [participant, setParticipant] = useState(null)
   const [session, setSession] = useState(null)
   const [currentQuestion, setCurrentQuestion] = useState(null)
   const [selectedAnswer, setSelectedAnswer] = useState(null)
-  const [timeLeft, setTimeLeft] = useState(0)
-  const [leaderboard, setLeaderboard] = useState([])
+  const [questionEndTime, setQuestionEndTime] = useState(null);
+  const timeLeft = useQuestionTimer(questionEndTime);
+  const [leaderboard, setLeaderboard] = useState([]);
   const [showLeaderboard, setShowLeaderboard] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [questionStartTime, setQuestionStartTime] = useState(null)
   const [hasAnswered, setHasAnswered] = useState(false)
   const [lastAnswerResult, setLastAnswerResult] = useState(null)
+  // Prevent race-condition when participant clicks multiple options very quickly
+  const answerLockRef = useRef(false)
+  // Track last handled question to avoid UI resets on realtime noise
+  const lastQuestionIdRef = useRef(null)
 
   useEffect(() => {
     initializeQuiz()
@@ -57,27 +90,6 @@ export default function ParticipantQuiz({ user, quiz, onLogout, onLeaveQuiz }) {
     }
   }, [participant?.quiz_session_id])
 
-  useEffect(() => {
-    if (session && session.session_status === 'question_active' && session.question_end_time) {
-      const endTime = new Date(session.question_end_time).getTime()
-      setQuestionStartTime(new Date(session.question_start_time).getTime())
-      setHasAnswered(false)
-      setSelectedAnswer(null)
-      setLastAnswerResult(null)
-      
-      const timer = setInterval(() => {
-        const now = Date.now()
-        const remaining = Math.max(0, Math.ceil((endTime - now) / 1000))
-        setTimeLeft(remaining)
-        
-        if (remaining === 0) {
-          clearInterval(timer)
-        }
-      }, 1000)
-
-      return () => clearInterval(timer)
-    }
-  }, [session])
 
   const initializeQuiz = async () => {
     setLoading(true)
@@ -125,31 +137,51 @@ export default function ParticipantQuiz({ user, quiz, onLogout, onLeaveQuiz }) {
   }
 
   const handleSessionUpdate = async (sessionData) => {
-    setSession(sessionData)
-    
-    if (sessionData.session_status === 'question_active' && sessionData.current_question_id) {
-      // Fetch the current question by id
-      const { data, error } = await supabase
-        .from('questions')
-        .select('*, question_options (*)')
-        .eq('id', sessionData.current_question_id)
-        .maybeSingle()
-      if (!error) {
-        setCurrentQuestion(data)
-        // After loading question, check if this participant already answered it
-        await loadExistingAnswer(sessionData.current_question_id)
-      }
-      setShowLeaderboard(false)
-    } else if (sessionData.session_status === 'showing_leaderboard') {
-      setShowLeaderboard(true)
-      setCurrentQuestion(null)
-      loadLeaderboard()
-    } else if (sessionData.session_status === 'completed') {
-      setShowLeaderboard(true)
-      setCurrentQuestion(null)
-      loadLeaderboard()
+    setSession(sessionData);
+
+    // When session is not active, ensure timer is stopped by clearing the end time.
+    if (sessionData.session_status !== 'question_active') {
+      setQuestionEndTime(null);
     }
-  }
+
+    if (sessionData.session_status === 'question_active' && sessionData.current_question_id) {
+      const isNewQuestion = lastQuestionIdRef.current !== sessionData.current_question_id;
+
+      if (isNewQuestion) {
+        // 1. Clear any old timer immediately by setting end time to null
+        setQuestionEndTime(null);
+
+        // 2. Set loading/reset state before fetching
+        lastQuestionIdRef.current = sessionData.current_question_id;
+        setQuestionStartTime(new Date(sessionData.question_start_time).getTime());
+        answerLockRef.current = false;
+        setHasAnswered(false);
+        setSelectedAnswer(null);
+        setLastAnswerResult(null);
+        setShowLeaderboard(false);
+
+        // 3. Fetch the new question data
+        const newQuestion = await fetchCurrentQuestion(sessionData.current_question_id);
+
+        if (newQuestion) {
+          // 4. Once data is fetched, set the question and start the timer
+          setCurrentQuestion(newQuestion);
+          await loadExistingAnswer(newQuestion.id);
+
+          const startTime = new Date(sessionData.question_start_time).getTime();
+          const serverEndTime = sessionData.question_end_time ? new Date(sessionData.question_end_time).getTime() : null;
+          const calculatedEndTime = startTime + (newQuestion.time_limit * 1000);
+          
+          // 5. Set the new end time, which will trigger the useQuestionTimer hook to start the countdown.
+          setQuestionEndTime(serverEndTime || calculatedEndTime);
+        }
+      }
+    } else if (sessionData.session_status === 'showing_leaderboard' || sessionData.session_status === 'completed') {
+      setShowLeaderboard(true);
+      setCurrentQuestion(null);
+      loadLeaderboard();
+    }
+  };
 
   const loadExistingAnswer = async (questionId) => {
     if (!participant) return
@@ -188,7 +220,12 @@ export default function ParticipantQuiz({ user, quiz, onLogout, onLeaveQuiz }) {
   }
 
   const handleAnswerSubmit = async (optionId) => {
+    // Hard lock to ignore further clicks once an answer is in flight or recorded
+    if (answerLockRef.current) return
     if (hasAnswered || !questionStartTime || !participant || !currentQuestion) return
+
+    // Lock immediately so even synchronous double-clicks are ignored
+    answerLockRef.current = true
 
     const responseTime = Date.now() - questionStartTime
     setSelectedAnswer(optionId)
@@ -204,6 +241,7 @@ export default function ParticipantQuiz({ user, quiz, onLogout, onLeaveQuiz }) {
       setError(result.error)
       setHasAnswered(false)
       setSelectedAnswer(null)
+      answerLockRef.current = false
     }
   }
 
@@ -516,8 +554,8 @@ export default function ParticipantQuiz({ user, quiz, onLogout, onLeaveQuiz }) {
                       selectedAnswer === option.id
                         ? 'bg-purple-500 bg-opacity-50 border-2 border-purple-400 text-white'
                         : hasAnswered
-                        ? 'bg-slate-700 bg-opacity-50 text-gray-400 cursor-not-allowed'
-                        : 'bg-slate-700 bg-opacity-30 border border-slate-600 text-white hover:bg-slate-600 hover:bg-opacity-50 hover:border-purple-400 transform hover:scale-105'
+                        ? 'bg-slate-700 bg-opacity-50 text-gray-400 cursor-not-allowed pointer-events-none'
+                        : 'bg-slate-700 bg-opacity-30 border border-slate-600 text-white hover:bg-slate-600 hover:bg-opacity-50 hover:border-purple-400'
                     } disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none`}
                   >
                     <span className="block">{option.option_text}</span>
